@@ -9,9 +9,10 @@ interface ProfilePageProps {
   user: User;
   onBack: () => void;
   onLoadSession: (session: StudySession) => void;
+  onUserUpdate: (user: User) => void;
 }
 
-const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onLoadSession }) => {
+const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onLoadSession, onUserUpdate }) => {
   const [history, setHistory] = useState<QuizAttempt[]>([]);
   const [studyHistory, setStudyHistory] = useState<StudySession[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
@@ -47,8 +48,18 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onLoadSession }
 
   const handleRemoveFriend = (id: string) => {
     if (confirm("Disconnect from this scholar's inner circle?")) {
-      authService.removeFriend(id);
-      refreshData();
+      try {
+        const updatedUser = authService.removeFriend(id);
+        
+        // Immediate local state update for instant UI feedback
+        setFriends(prev => prev.filter(f => f.id !== id));
+        setCircleRanking(prev => prev.filter(u => u.id !== id));
+        
+        // Propagate to global state
+        onUserUpdate(updatedUser);
+      } catch (err: any) {
+        setError(err.message);
+      }
     }
   };
 
@@ -57,7 +68,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onLoadSession }
     setError(null);
     if (!manualId.trim()) return;
     try {
-      authService.addFriend(manualId.trim());
+      const updatedUser = authService.addFriend(manualId.trim());
+      onUserUpdate(updatedUser);
       setManualId('');
       refreshData();
     } catch (err: any) {
@@ -291,7 +303,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onLoadSession }
                         placeholder="Enter Peer's Academic ID..." 
                         value={manualId}
                         onChange={(e) => setManualId(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-2xl py-3 pl-12 pr-4 text-xs text-white focus:border-indigo-500 outline-none transition-all"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-2xl py-3 pl-12 pr-4 text-xs text-white focus:outline-none focus:border-indigo-500 transition-all"
                       />
                     </div>
                     <button type="submit" className="bg-indigo-600 px-6 rounded-2xl text-[10px] font-black uppercase text-white hover:bg-indigo-500 transition-colors shadow-lg shadow-indigo-500/20">
@@ -321,7 +333,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onLoadSession }
                   ) : (
                     friends.map(f => (
                       <div key={f.id} className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/10 flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-300 font-black uppercase">{f.name[0]}</div>
+                        <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-300 font-black uppercase">{f.name?.[0] || '?' }</div>
                         <div className="flex-1 min-w-0">
                           <span className="text-sm font-bold text-white block truncate">{f.name}</span>
                           <span className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Connected</span>

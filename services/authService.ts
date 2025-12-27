@@ -50,6 +50,7 @@ export const authService = {
 
     const { password: _, ...userData } = user;
     if (userData.credits === undefined) userData.credits = 0;
+    if (!userData.friends) userData.friends = [];
     localStorage.setItem(SESSION_KEY, JSON.stringify(userData));
     return userData;
   },
@@ -58,7 +59,10 @@ export const authService = {
 
   getCurrentUser: (): User | null => {
     const session = localStorage.getItem(SESSION_KEY);
-    return session ? JSON.parse(session) : null;
+    if (!session) return null;
+    const user = JSON.parse(session);
+    if (!user.friends) user.friends = [];
+    return user;
   },
 
   addCredits: (amount: number): User | null => {
@@ -81,7 +85,6 @@ export const authService = {
     return updatedUser;
   },
 
-  // Private helper: gets all raw users
   _getRawUsers: (): any[] => {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
   },
@@ -95,64 +98,69 @@ export const authService = {
     
     return allRaw
       .filter((u: any) => circleIds.includes(u.id))
-      .map(({ password, ...u }: any) => u as User)
+      .map(({ password: _, ...u }: any) => u as User)
       .sort((a, b) => (b.credits || 0) - (a.credits || 0));
   },
 
-  searchUserById: (id: string): User | null => {
-    const allRaw = authService._getRawUsers();
-    const found = allRaw.find((u: any) => u.id === id);
-    if (!found) return null;
-    const { password, ...userData } = found;
-    return userData as User;
-  },
-
-  addFriend: (friendId: string) => {
+  addFriend: (friendId: string): User => {
     const currentUser = authService.getCurrentUser();
-    if (!currentUser) return;
-    if (currentUser.id === friendId) return;
+    if (!currentUser) throw new Error("No active session.");
+    if (currentUser.id === friendId) throw new Error("You cannot be your own peer.");
 
     const users = authService._getRawUsers();
     const friendExists = users.some((u: any) => u.id === friendId);
     if (!friendExists) throw new Error("Scholar ID not found in the Great Archive.");
 
+    let updatedSelf: User | null = null;
     const updatedUsers = users.map((u: any) => {
       if (u.id === currentUser.id) {
-        const friends = u.friends || [];
+        const friends = [...(u.friends || [])];
         if (!friends.includes(friendId)) friends.push(friendId);
+        const { password: _, ...cleanUser } = { ...u, friends } as any;
+        updatedSelf = cleanUser as User;
         return { ...u, friends };
       }
       return u;
     });
+
+    if (!updatedSelf) throw new Error("Failed to update profile.");
+
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUsers));
-    const updatedSelf = updatedUsers.find((u: any) => u.id === currentUser.id);
     localStorage.setItem(SESSION_KEY, JSON.stringify(updatedSelf));
+    return updatedSelf;
   },
 
-  removeFriend: (friendId: string) => {
+  removeFriend: (friendId: string): User => {
     const currentUser = authService.getCurrentUser();
-    if (!currentUser) return;
+    if (!currentUser) throw new Error("No active session.");
+    
     const users = authService._getRawUsers();
+    let updatedSelf: User | null = null;
 
     const updatedUsers = users.map((u: any) => {
       if (u.id === currentUser.id) {
-        const friends = (u.friends || []).filter((id: string) => id !== friendId);
+        const friends = (u.friends || []).filter((id: any) => id !== friendId);
+        const { password: _, ...cleanUser } = { ...u, friends } as any;
+        updatedSelf = cleanUser as User;
         return { ...u, friends };
       }
       return u;
     });
+
+    if (!updatedSelf) throw new Error("Failed to update profile.");
+
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUsers));
-    const updatedSelf = updatedUsers.find((u: any) => u.id === currentUser.id);
     localStorage.setItem(SESSION_KEY, JSON.stringify(updatedSelf));
+    return updatedSelf;
   },
 
   getFriends: (): User[] => {
     const user = authService.getCurrentUser();
-    if (!user || !user.friends) return [];
+    if (!user || !user.friends || user.friends.length === 0) return [];
     const allRaw = authService._getRawUsers();
     return allRaw
       .filter(u => user.friends?.includes(u.id))
-      .map(({ password, ...u }: any) => u as User);
+      .map(({ password: _, ...u }: any) => u as User);
   },
 
   saveQuizAttempt: (attemptData: Omit<QuizAttempt, 'id' | 'timestamp' | 'userId' | 'userName'>) => {

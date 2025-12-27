@@ -48,6 +48,10 @@ const App: React.FC = () => {
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
+  const handleUserUpdate = (updatedUser: User) => {
+    setUser(updatedUser);
+  };
+
   const handleAddSource = (source: StudySource) => {
     setSources(prev => ({
       ...prev,
@@ -153,6 +157,7 @@ const App: React.FC = () => {
           user={user} 
           onBack={() => setView('home')} 
           onLoadSession={handleLoadSession}
+          onUserUpdate={handleUserUpdate}
         />
         <style>{`
           .light .glass-card { background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(0,0,0,0.08); }
