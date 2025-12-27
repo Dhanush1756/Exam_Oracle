@@ -23,9 +23,13 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onLoadSession, 
   const [activeTab, setActiveTab] = useState<'stats' | 'archive' | 'friends' | 'leaderboard'>('stats');
   const [copySuccess, setCopySuccess] = useState(false);
 
+  // Sync effect - only runs when the user object from parent changes
   useEffect(() => {
-    refreshData();
-  }, [user]);
+    setHistory(authService.getQuizAttempts(user.id));
+    setFriends(authService.getFriends(user.id));
+    setCircleRanking(authService.getFriendCircleRanking());
+    fetchStudyHistory();
+  }, [user.id, user.friends]);
 
   const fetchStudyHistory = async () => {
     setIsHistoryLoading(true);
@@ -39,26 +43,36 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onLoadSession, 
     }
   };
 
-  const refreshData = () => {
-    setHistory(authService.getQuizAttempts(user.id));
-    setFriends(authService.getFriends());
-    setCircleRanking(authService.getFriendCircleRanking());
-    fetchStudyHistory();
-  };
-
   const handleRemoveFriend = (id: string) => {
-    if (confirm("Disconnect from this scholar's inner circle?")) {
+    const friendIdToRemove = id.toString().trim();
+    
+    // Explicit Confirmation Popup
+    const confirmed = window.confirm("Are you sure you wish to disconnect this scholar from your Inner Circle?");
+    
+    if (confirmed) {
       try {
-        const updatedUser = authService.removeFriend(id);
+        console.log(`[Oracle] Initiating removal of peer ID: ${friendIdToRemove}`);
         
-        // Immediate local state update for instant UI feedback
-        setFriends(prev => prev.filter(f => f.id !== id));
-        setCircleRanking(prev => prev.filter(u => u.id !== id));
+        // 1. Update the background storage
+        const updatedUser = authService.removeFriend(friendIdToRemove);
         
-        // Propagate to global state
+        // 2. Functional State Update for Instant UI Refresh
+        // This ensures React detects the array length change and updates the DOM immediately
+        setFriends(prev => {
+          const filtered = prev.filter(f => f.id.toString().trim() !== friendIdToRemove);
+          console.log(`[Oracle] UI Updated. Peers remaining in circle: ${filtered.length}`);
+          return filtered;
+        });
+        
+        setCircleRanking(prev => prev.filter(u => u.id.toString().trim() !== friendIdToRemove));
+        
+        // 3. Propagate the change to the global App state
         onUserUpdate(updatedUser);
+        
+        console.log("[Oracle] Peer successfully banished. Sanctuary synchronized.");
       } catch (err: any) {
         setError(err.message);
+        console.error("[Oracle Error] Removal ritual failed:", err);
       }
     }
   };
@@ -66,12 +80,12 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onLoadSession, 
   const handleManualConnect = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!manualId.trim()) return;
+    const targetId = manualId.trim();
+    if (!targetId) return;
     try {
-      const updatedUser = authService.addFriend(manualId.trim());
+      const updatedUser = authService.addFriend(targetId);
       onUserUpdate(updatedUser);
       setManualId('');
-      refreshData();
     } catch (err: any) {
       setError(err.message);
     }
@@ -259,16 +273,16 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onLoadSession, 
               
               <div className="glass-card rounded-[2.5rem] overflow-hidden">
                 {circleRanking.map((u, i) => (
-                  <div key={u.id} className={`flex items-center justify-between p-6 border-b border-white/5 last:border-0 ${u.id === user.id ? 'bg-indigo-500/10' : ''}`}>
+                  <div key={u.id} className={`flex items-center justify-between p-6 border-b border-white/5 last:border-0 ${u.id.toString().trim() === user.id.toString().trim() ? 'bg-indigo-500/10' : ''}`}>
                     <div className="flex items-center gap-4">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${i === 0 ? 'bg-amber-500 text-white' : i === 1 ? 'bg-slate-300 text-slate-900' : i === 2 ? 'bg-amber-700 text-white' : 'text-slate-500'}`}>
                         {i + 1}
                       </div>
-                      <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center text-slate-500 font-bold uppercase">{u.name[0]}</div>
+                      <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center text-slate-500 font-bold uppercase">{u.name?.[0] || '?'}</div>
                       <div>
                         <h4 className="text-slate-200 font-bold text-sm flex items-center gap-2">
                           {u.name}
-                          {u.id === user.id && <span className="bg-indigo-500/20 text-indigo-400 text-[8px] px-1.5 py-0.5 rounded-full">YOU</span>}
+                          {u.id.toString().trim() === user.id.toString().trim() && <span className="bg-indigo-500/20 text-indigo-400 text-[8px] px-1.5 py-0.5 rounded-full">YOU</span>}
                         </h4>
                         <span className="text-[10px] text-slate-600 uppercase font-black">Scholarly Peer</span>
                       </div>
@@ -332,7 +346,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onLoadSession, 
                     </div>
                   ) : (
                     friends.map(f => (
-                      <div key={f.id} className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/10 flex items-center gap-4">
+                      <div key={f.id} className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/10 flex items-center gap-4 animate-in fade-in slide-in-from-left-2 duration-300">
                         <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-300 font-black uppercase">{f.name?.[0] || '?' }</div>
                         <div className="flex-1 min-w-0">
                           <span className="text-sm font-bold text-white block truncate">{f.name}</span>

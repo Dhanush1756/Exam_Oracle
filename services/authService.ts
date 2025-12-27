@@ -73,7 +73,7 @@ export const authService = {
     const newTotal = (currentUser.credits || 0) + amount;
     
     const updatedUsers = users.map((u: any) => {
-      if (u.id === currentUser.id) {
+      if (u.id.toString().trim() === currentUser.id.toString().trim()) {
         return { ...u, credits: newTotal };
       }
       return u;
@@ -94,10 +94,10 @@ export const authService = {
     if (!currentUser) return [];
     
     const allRaw = authService._getRawUsers();
-    const circleIds = [currentUser.id, ...(currentUser.friends || [])];
+    const circleIds = [currentUser.id, ...(currentUser.friends || [])].map(id => id.toString().trim());
     
     return allRaw
-      .filter((u: any) => circleIds.includes(u.id))
+      .filter((u: any) => circleIds.includes(u.id.toString().trim()))
       .map(({ password: _, ...u }: any) => u as User)
       .sort((a, b) => (b.credits || 0) - (a.credits || 0));
   },
@@ -105,17 +105,18 @@ export const authService = {
   addFriend: (friendId: string): User => {
     const currentUser = authService.getCurrentUser();
     if (!currentUser) throw new Error("No active session.");
-    if (currentUser.id === friendId) throw new Error("You cannot be your own peer.");
+    const targetId = friendId.toString().trim();
+    if (currentUser.id.toString().trim() === targetId) throw new Error("You cannot be your own peer.");
 
     const users = authService._getRawUsers();
-    const friendExists = users.some((u: any) => u.id === friendId);
+    const friendExists = users.some((u: any) => u.id.toString().trim() === targetId);
     if (!friendExists) throw new Error("Scholar ID not found in the Great Archive.");
 
     let updatedSelf: User | null = null;
     const updatedUsers = users.map((u: any) => {
-      if (u.id === currentUser.id) {
-        const friends = [...(u.friends || [])];
-        if (!friends.includes(friendId)) friends.push(friendId);
+      if (u.id.toString().trim() === currentUser.id.toString().trim()) {
+        const friends = [...(u.friends || [])].map(fid => fid.toString().trim());
+        if (!friends.includes(targetId)) friends.push(targetId);
         const { password: _, ...cleanUser } = { ...u, friends } as any;
         updatedSelf = cleanUser as User;
         return { ...u, friends };
@@ -134,12 +135,16 @@ export const authService = {
     const currentUser = authService.getCurrentUser();
     if (!currentUser) throw new Error("No active session.");
     
+    const targetId = friendId.toString().trim();
     const users = authService._getRawUsers();
     let updatedSelf: User | null = null;
 
     const updatedUsers = users.map((u: any) => {
-      if (u.id === currentUser.id) {
-        const friends = (u.friends || []).filter((id: any) => id !== friendId);
+      if (u.id.toString().trim() === currentUser.id.toString().trim()) {
+        const friends = (u.friends || [])
+          .map(fid => fid.toString().trim())
+          .filter(fid => fid !== targetId);
+          
         const { password: _, ...cleanUser } = { ...u, friends } as any;
         updatedSelf = cleanUser as User;
         return { ...u, friends };
@@ -154,12 +159,26 @@ export const authService = {
     return updatedSelf;
   },
 
-  getFriends: (): User[] => {
-    const user = authService.getCurrentUser();
-    if (!user || !user.friends || user.friends.length === 0) return [];
+  getFriends: (userId?: string): User[] => {
+    const activeUser = authService.getCurrentUser();
+    if (!activeUser) return [];
+    
+    // If a userId is provided, we fetch friends for that specific user from the registry
+    let targetFriends: string[] = [];
+    if (userId && userId !== activeUser.id) {
+       const allRaw = authService._getRawUsers();
+       const target = allRaw.find(u => u.id.toString().trim() === userId.toString().trim());
+       targetFriends = target?.friends || [];
+    } else {
+       targetFriends = activeUser.friends || [];
+    }
+
+    if (targetFriends.length === 0) return [];
+    
+    const friendIds = targetFriends.map(id => id.toString().trim());
     const allRaw = authService._getRawUsers();
     return allRaw
-      .filter(u => user.friends?.includes(u.id))
+      .filter(u => friendIds.includes(u.id.toString().trim()))
       .map(({ password: _, ...u }: any) => u as User);
   },
 
@@ -182,7 +201,7 @@ export const authService = {
 
   getQuizAttempts: (userId?: string): QuizAttempt[] => {
     const history: QuizAttempt[] = JSON.parse(localStorage.getItem(SCORES_KEY) || '[]');
-    if (userId) return history.filter(a => a.userId === userId);
+    if (userId) return history.filter(a => a.userId.toString().trim() === userId.toString().trim());
     return history;
   },
 
@@ -228,7 +247,7 @@ export const authService = {
       const request = store.getAll();
       request.onsuccess = () => {
         const all = request.result as StudySession[];
-        const filtered = all.filter(h => h.userId === userId).sort((a, b) => b.timestamp - a.timestamp);
+        const filtered = all.filter(h => h.userId.toString().trim() === userId.toString().trim()).sort((a, b) => b.timestamp - a.timestamp);
         resolve(filtered);
       };
       request.onerror = () => reject(request.error);
