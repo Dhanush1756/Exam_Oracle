@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { User, QuizAttempt, StudySession } from '../types';
 import { authService } from '../services/authService';
 import PerformanceGraph from './PerformanceGraph';
-import { User as UserIcon, Mail, ArrowLeft, History, Trophy, UserPlus, Users, Check, Search, BookOpen, Trash2, ExternalLink, Loader2, Coins, Crown } from 'lucide-react';
+import { User as UserIcon, ArrowLeft, History, Trophy, UserPlus, UserMinus, Users, Check, Search, BookOpen, Trash2, ExternalLink, Loader2, Coins, Crown, Copy, Link, Sparkles, AlertCircle } from 'lucide-react';
 
 interface ProfilePageProps {
   user: User;
@@ -16,17 +16,14 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onLoadSession }
   const [studyHistory, setStudyHistory] = useState<StudySession[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [friends, setFriends] = useState<User[]>([]);
-  const [allUsers, setAllUsers] = useState<User[]>([]);
-  const [leaderboard, setLeaderboard] = useState<User[]>([]);
-  const [search, setSearch] = useState('');
+  const [circleRanking, setCircleRanking] = useState<User[]>([]);
+  const [manualId, setManualId] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'stats' | 'archive' | 'friends' | 'leaderboard'>('stats');
+  const [copySuccess, setCopySuccess] = useState(false);
 
   useEffect(() => {
-    setHistory(authService.getQuizAttempts(user.id));
-    setFriends(authService.getFriends());
-    setAllUsers(authService.getAllUsers().filter(u => u.id !== user.id));
-    setLeaderboard(authService.getAllUsers().slice(0, 10)); // Top 10 globally
-    fetchStudyHistory();
+    refreshData();
   }, [user]);
 
   const fetchStudyHistory = async () => {
@@ -35,15 +32,43 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onLoadSession }
       const data = await authService.getStudyHistory(user.id);
       setStudyHistory(data);
     } catch (err) {
-      console.error("Failed to fetch history:", err);
+      console.error("Failed to fetch study history:", err);
     } finally {
       setIsHistoryLoading(false);
     }
   };
 
-  const handleAddFriend = (id: string) => {
-    authService.addFriend(id);
+  const refreshData = () => {
+    setHistory(authService.getQuizAttempts(user.id));
     setFriends(authService.getFriends());
+    setCircleRanking(authService.getFriendCircleRanking());
+    fetchStudyHistory();
+  };
+
+  const handleRemoveFriend = (id: string) => {
+    if (confirm("Disconnect from this scholar's inner circle?")) {
+      authService.removeFriend(id);
+      refreshData();
+    }
+  };
+
+  const handleManualConnect = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!manualId.trim()) return;
+    try {
+      authService.addFriend(manualId.trim());
+      setManualId('');
+      refreshData();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleCopyId = () => {
+    navigator.clipboard.writeText(user.id);
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 2000);
   };
 
   const handleDeleteSession = async (e: React.MouseEvent, id: string) => {
@@ -55,11 +80,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onLoadSession }
       console.error("Failed to delete session:", err);
     }
   };
-
-  const filteredUsers = allUsers.filter(u => 
-    (u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase())) &&
-    !user.friends?.includes(u.id)
-  );
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -81,6 +101,16 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onLoadSession }
             <h2 className="oracle-title text-2xl text-white mb-1">{user.name}</h2>
             <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Master Scholar</p>
             
+            <div className="bg-slate-950/50 p-3 rounded-2xl border border-slate-800 mb-4 group/id relative">
+               <span className="text-[8px] font-black text-slate-600 uppercase block mb-1">Academic ID</span>
+               <div className="flex items-center justify-between gap-2">
+                 <code className="text-[10px] text-indigo-400 font-mono truncate">{user.id}</code>
+                 <button onClick={handleCopyId} className="text-slate-500 hover:text-white transition-colors">
+                   {copySuccess ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                 </button>
+               </div>
+            </div>
+
             <div className="flex items-center justify-center gap-2 bg-amber-500/10 py-2 px-4 rounded-xl border border-amber-500/20 mb-8">
               <Coins className="w-4 h-4 text-amber-500" />
               <span className="text-sm font-black text-amber-200">{user.credits || 0} Credits</span>
@@ -107,14 +137,14 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onLoadSession }
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'leaderboard' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:bg-slate-900'}`}
               >
                 <Crown className="w-4 h-4" />
-                <span className="text-xs font-bold uppercase tracking-widest">Top Rankings</span>
+                <span className="text-xs font-bold uppercase tracking-widest">Circle Council</span>
               </button>
               <button 
                 onClick={() => setActiveTab('friends')}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'friends' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:bg-slate-900'}`}
               >
                 <Users className="w-4 h-4" />
-                <span className="text-xs font-bold uppercase tracking-widest">Friend Circle</span>
+                <span className="text-xs font-bold uppercase tracking-widest">Inner Circle</span>
               </button>
             </nav>
           </div>
@@ -212,23 +242,23 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onLoadSession }
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
               <div className="flex items-center gap-3 mb-2">
                 <Crown className="text-amber-400 w-5 h-5" />
-                <h3 className="text-white font-bold uppercase tracking-widest text-sm">Scholarly Council (Top Credits)</h3>
+                <h3 className="text-white font-bold uppercase tracking-widest text-sm">Circle Council Rankings</h3>
               </div>
               
               <div className="glass-card rounded-[2.5rem] overflow-hidden">
-                {leaderboard.map((u, i) => (
+                {circleRanking.map((u, i) => (
                   <div key={u.id} className={`flex items-center justify-between p-6 border-b border-white/5 last:border-0 ${u.id === user.id ? 'bg-indigo-500/10' : ''}`}>
                     <div className="flex items-center gap-4">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${i === 0 ? 'bg-amber-500 text-white' : i === 1 ? 'bg-slate-300 text-slate-900' : i === 2 ? 'bg-amber-700 text-white' : 'text-slate-500'}`}>
                         {i + 1}
                       </div>
-                      <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center text-slate-500 font-bold">{u.name[0]}</div>
+                      <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center text-slate-500 font-bold uppercase">{u.name[0]}</div>
                       <div>
                         <h4 className="text-slate-200 font-bold text-sm flex items-center gap-2">
                           {u.name}
                           {u.id === user.id && <span className="bg-indigo-500/20 text-indigo-400 text-[8px] px-1.5 py-0.5 rounded-full">YOU</span>}
                         </h4>
-                        <span className="text-[10px] text-slate-600 uppercase font-black">{u.id === user.id ? 'Active Session' : 'Scholarly Seeker'}</span>
+                        <span className="text-[10px] text-slate-600 uppercase font-black">Scholarly Peer</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -246,41 +276,35 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onLoadSession }
               <section className="glass-card p-8 rounded-[2.5rem] border border-indigo-500/10">
                 <div className="flex items-center gap-3 mb-6">
                   <UserPlus className="text-indigo-400 w-5 h-5" />
-                  <h3 className="text-white font-bold uppercase tracking-widest text-sm">Discover Scholars</h3>
+                  <h3 className="text-white font-bold uppercase tracking-widest text-sm">Add to Inner Circle</h3>
                 </div>
-                <div className="relative mb-6">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                  <input 
-                    type="text" 
-                    placeholder="Search by name or scroll address..." 
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl py-3 pl-12 pr-4 text-sm text-white focus:border-indigo-500 outline-none transition-all"
-                  />
-                </div>
-                <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
-                  {filteredUsers.length === 0 ? (
-                    <p className="text-slate-500 text-xs italic text-center py-4">Seek and you shall find more scholars.</p>
-                  ) : (
-                    filteredUsers.map(u => (
-                      <div key={u.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-900/30 border border-slate-800">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 text-xs font-black">{u.name[0]}</div>
-                          <div>
-                            <span className="text-sm font-bold text-white block">{u.name}</span>
-                            <span className="text-[10px] text-slate-500">{u.email}</span>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={() => handleAddFriend(u.id)}
-                          className="p-2 hover:bg-indigo-600 bg-indigo-500/10 text-indigo-400 hover:text-white rounded-lg transition-all"
-                        >
-                          <UserPlus className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))
+                
+                <form onSubmit={handleManualConnect} className="space-y-4">
+                  <p className="text-slate-500 text-xs italic leading-relaxed">
+                    "Only those with a unique Academic ID can enter your sanctuary. Exchange IDs with your peers to connect."
+                  </p>
+                  <div className="relative flex gap-2">
+                    <div className="relative flex-1">
+                      <Link className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                      <input 
+                        type="text" 
+                        placeholder="Enter Peer's Academic ID..." 
+                        value={manualId}
+                        onChange={(e) => setManualId(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-2xl py-3 pl-12 pr-4 text-xs text-white focus:border-indigo-500 outline-none transition-all"
+                      />
+                    </div>
+                    <button type="submit" className="bg-indigo-600 px-6 rounded-2xl text-[10px] font-black uppercase text-white hover:bg-indigo-500 transition-colors shadow-lg shadow-indigo-500/20">
+                      Connect
+                    </button>
+                  </div>
+                  {error && (
+                    <div className="flex items-center gap-2 text-rose-400 text-[10px] font-bold bg-rose-400/5 p-3 rounded-xl border border-rose-400/10">
+                      <AlertCircle className="w-3 h-3" />
+                      {error}
+                    </div>
                   )}
-                </div>
+                </form>
               </section>
 
               <section className="glass-card p-8 rounded-[2.5rem]">
@@ -290,20 +314,30 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onLoadSession }
                 </div>
                 <div className="grid sm:grid-cols-2 gap-4">
                   {friends.length === 0 ? (
-                    <div className="col-span-2 text-center py-10">
-                      <p className="text-slate-500 text-sm italic">You walk the path alone for now.</p>
+                    <div className="col-span-2 text-center py-10 opacity-40">
+                      <Sparkles className="w-10 h-10 text-slate-700 mx-auto mb-4" />
+                      <p className="text-slate-500 text-sm italic">No peers found in your sanctuary yet.</p>
                     </div>
                   ) : (
                     friends.map(f => (
                       <div key={f.id} className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/10 flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-300 font-black">{f.name[0]}</div>
+                        <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-300 font-black uppercase">{f.name[0]}</div>
                         <div className="flex-1 min-w-0">
                           <span className="text-sm font-bold text-white block truncate">{f.name}</span>
-                          <span className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Enlightened</span>
+                          <span className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Connected</span>
                         </div>
-                        <div className="flex items-center gap-1 text-amber-500">
-                          <Coins className="w-3 h-3" />
-                          <span className="text-xs font-bold">{f.credits || 0}</span>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 text-amber-500 mr-2">
+                            <Coins className="w-3 h-3" />
+                            <span className="text-xs font-bold">{f.credits || 0}</span>
+                          </div>
+                          <button 
+                            onClick={() => handleRemoveFriend(f.id)}
+                            className="p-1.5 hover:bg-rose-500/20 text-slate-600 hover:text-rose-400 rounded-lg transition-all"
+                            title="Remove from circle"
+                          >
+                            <UserMinus className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
                     ))

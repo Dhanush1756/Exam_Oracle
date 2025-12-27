@@ -81,15 +81,41 @@ export const authService = {
     return updatedUser;
   },
 
-  getAllUsers: (): User[] => {
-    const users = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-    return users.map(({ password, ...u }: any) => u).sort((a: any, b: any) => (b.credits || 0) - (a.credits || 0));
+  // Private helper: gets all raw users
+  _getRawUsers: (): any[] => {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  },
+
+  getFriendCircleRanking: (): User[] => {
+    const currentUser = authService.getCurrentUser();
+    if (!currentUser) return [];
+    
+    const allRaw = authService._getRawUsers();
+    const circleIds = [currentUser.id, ...(currentUser.friends || [])];
+    
+    return allRaw
+      .filter((u: any) => circleIds.includes(u.id))
+      .map(({ password, ...u }: any) => u as User)
+      .sort((a, b) => (b.credits || 0) - (a.credits || 0));
+  },
+
+  searchUserById: (id: string): User | null => {
+    const allRaw = authService._getRawUsers();
+    const found = allRaw.find((u: any) => u.id === id);
+    if (!found) return null;
+    const { password, ...userData } = found;
+    return userData as User;
   },
 
   addFriend: (friendId: string) => {
     const currentUser = authService.getCurrentUser();
     if (!currentUser) return;
-    const users = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    if (currentUser.id === friendId) return;
+
+    const users = authService._getRawUsers();
+    const friendExists = users.some((u: any) => u.id === friendId);
+    if (!friendExists) throw new Error("Scholar ID not found in the Great Archive.");
+
     const updatedUsers = users.map((u: any) => {
       if (u.id === currentUser.id) {
         const friends = u.friends || [];
@@ -103,11 +129,30 @@ export const authService = {
     localStorage.setItem(SESSION_KEY, JSON.stringify(updatedSelf));
   },
 
+  removeFriend: (friendId: string) => {
+    const currentUser = authService.getCurrentUser();
+    if (!currentUser) return;
+    const users = authService._getRawUsers();
+
+    const updatedUsers = users.map((u: any) => {
+      if (u.id === currentUser.id) {
+        const friends = (u.friends || []).filter((id: string) => id !== friendId);
+        return { ...u, friends };
+      }
+      return u;
+    });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUsers));
+    const updatedSelf = updatedUsers.find((u: any) => u.id === currentUser.id);
+    localStorage.setItem(SESSION_KEY, JSON.stringify(updatedSelf));
+  },
+
   getFriends: (): User[] => {
     const user = authService.getCurrentUser();
     if (!user || !user.friends) return [];
-    const allUsers = authService.getAllUsers();
-    return allUsers.filter(u => user.friends?.includes(u.id));
+    const allRaw = authService._getRawUsers();
+    return allRaw
+      .filter(u => user.friends?.includes(u.id))
+      .map(({ password, ...u }: any) => u as User);
   },
 
   saveQuizAttempt: (attemptData: Omit<QuizAttempt, 'id' | 'timestamp' | 'userId' | 'userName'>) => {

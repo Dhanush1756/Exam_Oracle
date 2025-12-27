@@ -9,11 +9,14 @@ import { AuthForms } from './components/AuthForms';
 import { StudySource, StudyGuideResponse, User, StudySession } from './types';
 import { generateStudyGuide } from './services/geminiService';
 import { authService } from './services/authService';
-import { Sparkles, Loader2, AlertCircle, LogOut, User as UserIcon, Settings } from 'lucide-react';
+import { Sparkles, Loader2, AlertCircle, LogOut, User as UserIcon, Sun, Moon } from 'lucide-react';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [view, setView] = useState<'home' | 'profile'>('home');
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    return (localStorage.getItem('oracle_theme') as 'dark' | 'light') || 'dark';
+  });
   const [sources, setSources] = useState<Record<'syllabus' | 'notes' | 'textbook', StudySource[]>>({
     syllabus: [],
     notes: [],
@@ -28,6 +31,22 @@ const App: React.FC = () => {
     const activeUser = authService.getCurrentUser();
     if (activeUser) setUser(activeUser);
   }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.remove('dark', 'light');
+    document.documentElement.classList.add(theme);
+    localStorage.setItem('oracle_theme', theme);
+    
+    if (theme === 'light') {
+      document.body.style.backgroundColor = '#f8fafc';
+      document.body.style.color = '#1e293b';
+    } else {
+      document.body.style.backgroundColor = '#050810';
+      document.body.style.color = '#f8fafc';
+    }
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
   const handleAddSource = (source: StudySource) => {
     setSources(prev => ({
@@ -105,38 +124,70 @@ const App: React.FC = () => {
 
   if (!user) {
     return (
-      <div className="min-h-screen pb-20 selection:bg-purple-500/30">
+      <div className={`min-h-screen pb-20 selection:bg-purple-500/30 ${theme}`}>
+        <div className="flex justify-end p-4">
+           <button onClick={toggleTheme} className="p-3 bg-slate-900/40 rounded-2xl border border-slate-800 text-slate-400 hover:text-white transition-all">
+             {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+           </button>
+        </div>
         <OracleHeader />
         <AuthForms onAuthSuccess={setUser} />
+        <style>{`
+          .light .glass-card { background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+          .light .oracle-title { color: #1e1b4b !important; background: none; -webkit-text-fill-color: initial; }
+          .light .text-slate-200, .light .text-white { color: #1e293b !important; }
+          .light .text-slate-400, .light .text-slate-500 { color: #64748b !important; }
+          .light .bg-slate-900, .light .bg-slate-900\\/50 { background: #f1f5f9 !important; }
+          .light .border-slate-700, .light .border-slate-800 { border-color: #e2e8f0 !important; }
+          .light input { background: #fff !important; color: #1e293b !important; border-color: #cbd5e1 !important; }
+          .light button.bg-slate-900\\/40 { background: #f1f5f9; color: #64748b; }
+        `}</style>
       </div>
     );
   }
 
   if (view === 'profile') {
     return (
-      <ProfilePage 
-        user={user} 
-        onBack={() => setView('home')} 
-        onLoadSession={handleLoadSession}
-      />
+      <div className={theme}>
+        <ProfilePage 
+          user={user} 
+          onBack={() => setView('home')} 
+          onLoadSession={handleLoadSession}
+        />
+        <style>{`
+          .light .glass-card { background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(0,0,0,0.08); }
+          .light .oracle-title { color: #1e1b4b !important; background: none; -webkit-text-fill-color: initial; }
+          .light .text-slate-200, .light .text-white { color: #1e293b !important; }
+          .light .text-slate-400, .light .text-slate-500 { color: #64748b !important; }
+          .light .bg-slate-950, .light .bg-slate-900 { background: #f1f5f9 !important; }
+          .light .border-slate-800, .light .border-slate-700 { border-color: #e2e8f0 !important; }
+        `}</style>
+      </div>
     );
   }
 
   return (
-    <div className="min-h-screen pb-20 selection:bg-purple-500/30">
+    <div className={`min-h-screen pb-20 selection:bg-purple-500/30 ${theme}`}>
       <div className="max-w-6xl mx-auto px-4 pt-6 flex justify-between items-center relative z-50">
-        <button 
-          onClick={() => setView('profile')}
-          className="flex items-center gap-3 bg-slate-900/40 px-4 py-2 rounded-full border border-slate-800 backdrop-blur-md hover:border-indigo-500/50 transition-all group"
-        >
-          <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400 group-hover:bg-indigo-500 group-hover:text-white transition-all">
-            <UserIcon className="w-4 h-4" />
-          </div>
-          <div className="text-left">
-            <span className="text-slate-200 text-xs font-black uppercase block tracking-tighter">Academic Profile</span>
-            <span className="text-slate-400 text-[10px] font-bold">Greetings, {user.name}</span>
-          </div>
-        </button>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => setView('profile')}
+            className="flex items-center gap-3 bg-slate-900/40 px-4 py-2 rounded-full border border-slate-800 backdrop-blur-md hover:border-indigo-500/50 transition-all group"
+          >
+            <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400 group-hover:bg-indigo-500 group-hover:text-white transition-all">
+              <UserIcon className="w-4 h-4" />
+            </div>
+            <div className="text-left">
+              <span className="text-slate-200 text-xs font-black uppercase block tracking-tighter">Academic Profile</span>
+              <span className="text-slate-400 text-[10px] font-bold">Greetings, {user.name}</span>
+            </div>
+          </button>
+          
+          <button onClick={toggleTheme} className="p-2.5 bg-slate-900/40 rounded-full border border-slate-800 text-slate-400 hover:text-white transition-all">
+            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
+        </div>
+
         <button 
           onClick={handleLogout}
           className="flex items-center gap-2 text-slate-500 hover:text-white transition-all text-xs font-black uppercase tracking-[0.2em]"
@@ -250,13 +301,31 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {/* Floating ChatBot - Available once any documents are uploaded */}
       {allSources.length > 0 && <ChatBot sources={allSources} />}
 
       <div className="fixed inset-0 pointer-events-none -z-20 overflow-hidden">
         <div className="absolute top-[10%] left-[5%] w-[30rem] h-[30rem] bg-indigo-600/[0.03] rounded-full blur-[120px]"></div>
         <div className="absolute bottom-[5%] right-[2%] w-[40rem] h-[40rem] bg-purple-600/[0.03] rounded-full blur-[150px]"></div>
       </div>
+
+      <style>{`
+        .light .glass-card { background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+        .light .oracle-title { color: #1e1b4b !important; background: none; -webkit-text-fill-color: initial; }
+        .light .text-slate-200, .light .text-white { color: #1e293b !important; }
+        .light .text-slate-400, .light .text-slate-500 { color: #64748b !important; }
+        .light .bg-slate-900, .light .bg-slate-900\\/40, .light .bg-slate-900\\/50 { background: #f1f5f9 !important; }
+        .light .border-slate-800, .light .border-slate-700 { border-color: #cbd5e1 !important; }
+        .light .text-indigo-400 { color: #4f46e5 !important; }
+        .light .text-indigo-300 { color: #4338ca !important; }
+        .light .bg-slate-950 { background: #fff !important; }
+        .light .bg-indigo-500\\/10 { background: rgba(79, 70, 229, 0.1) !important; }
+        .light .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; }
+        .light .bg-emerald-500\\/5 { background: rgba(16, 185, 129, 0.08) !important; }
+        .light .border-emerald-500\\/30 { border-color: rgba(16, 185, 129, 0.3) !important; }
+        .light .bg-indigo-600 { background: #4f46e5 !important; }
+        .light .text-amber-200 { color: #92400e !important; }
+        .light .bg-amber-500\\/10 { background: rgba(245, 158, 11, 0.1) !important; }
+      `}</style>
     </div>
   );
 };
