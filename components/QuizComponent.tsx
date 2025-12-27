@@ -19,8 +19,9 @@ const QuizComponent: React.FC<QuizComponentProps> = ({ quiz, onClose }) => {
   const [history, setHistory] = useState<QuizAttempt[]>([]);
   const [rankings, setRankings] = useState<QuizAttempt[]>([]);
   
-  // Timer State
-  const [timeLeft, setTimeLeft] = useState(quiz.questions.length * 60); // 1 minute per question
+  // Timer State: Use actual number of questions provided by AI
+  const totalQuestions = quiz.questions.length;
+  const [timeLeft, setTimeLeft] = useState(totalQuestions * 60); // 1 minute per question
   const [timeTaken, setTimeTaken] = useState(0);
   const timerRef = useRef<number | null>(null);
 
@@ -60,11 +61,11 @@ const QuizComponent: React.FC<QuizComponentProps> = ({ quiz, onClose }) => {
   const handleFinish = () => {
     if (timerRef.current) clearInterval(timerRef.current);
     
-    const percentage = Math.round((score / quiz.questions.length) * 100);
+    const percentage = Math.round((score / totalQuestions) * 100);
     authService.saveQuizAttempt({
       quizTitle: quiz.title,
       score: score,
-      total: quiz.questions.length,
+      total: totalQuestions,
       percentage: percentage,
       timeTaken: timeTaken,
       sessionId: quiz.sessionId
@@ -79,7 +80,7 @@ const QuizComponent: React.FC<QuizComponentProps> = ({ quiz, onClose }) => {
   };
 
   const handleNext = () => {
-    if (currentIdx + 1 < quiz.questions.length) {
+    if (currentIdx + 1 < totalQuestions) {
       setCurrentIdx(prev => prev + 1);
       setSelectedOption(null);
       setShowFeedback(false);
@@ -94,8 +95,19 @@ const QuizComponent: React.FC<QuizComponentProps> = ({ quiz, onClose }) => {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
+  const getMultiSeries = () => {
+    if (!quiz.isCollaborative || rankings.length === 0) return undefined;
+    
+    const colors = ['#6366F1', '#10B981', '#F59E0B', '#F43F5E', '#8B5CF6'];
+    return rankings.map((rank, idx) => ({
+      label: rank.userName,
+      color: colors[idx % colors.length],
+      attempts: authService.getQuizAttempts(rank.userId).filter(a => a.quizTitle === quiz.title)
+    }));
+  };
+
   if (isFinished) {
-    const percentage = Math.round((score / quiz.questions.length) * 100);
+    const percentage = Math.round((score / totalQuestions) * 100);
     return (
       <div className="glass-card p-10 rounded-[3rem] text-center animate-in zoom-in duration-500 overflow-hidden relative">
         <div className="absolute -top-10 -right-10 w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl" />
@@ -142,7 +154,7 @@ const QuizComponent: React.FC<QuizComponentProps> = ({ quiz, onClose }) => {
             </div>
           )}
 
-          <PerformanceGraph attempts={history} />
+          <PerformanceGraph attempts={history} multiSeries={getMultiSeries()} />
 
           <button 
             onClick={onClose}
@@ -160,7 +172,7 @@ const QuizComponent: React.FC<QuizComponentProps> = ({ quiz, onClose }) => {
       <div className="flex justify-between items-center mb-10 relative z-10">
         <div className="flex items-center gap-4">
           <div className="px-4 py-2 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-xs font-black text-indigo-300">
-            TRIAL {currentIdx + 1} / {quiz.questions.length}
+            TRIAL {currentIdx + 1} / {totalQuestions}
           </div>
           <div className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black border transition-colors ${timeLeft < 30 ? 'bg-rose-500/20 text-rose-400 border-rose-500/30 animate-pulse' : 'bg-slate-900 border-slate-800 text-slate-400'}`}>
             <Clock className="w-4 h-4" />
@@ -229,7 +241,7 @@ const QuizComponent: React.FC<QuizComponentProps> = ({ quiz, onClose }) => {
             onClick={handleNext}
             className="px-12 py-5 bg-white text-slate-900 rounded-[1.5rem] font-black uppercase tracking-widest text-xs"
           >
-            {currentIdx + 1 === quiz.questions.length ? 'Final Verdict' : 'Next Trial'}
+            {currentIdx + 1 === totalQuestions ? 'Final Verdict' : 'Next Trial'}
             <ArrowRight className="w-5 h-5 inline ml-2" />
           </button>
         )}

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Brain, Lightbulb, CheckCircle, ListChecks, Clock, Target, Loader2, PlayCircle, ShieldQuestion, Award, ExternalLink, Globe, Users, Zap, Languages, BookOpen } from 'lucide-react';
+import { Sparkles, Brain, Lightbulb, CheckCircle, ListChecks, Clock, Target, Loader2, PlayCircle, ShieldQuestion, Award, ExternalLink, Globe, Users, Zap, Languages, BookOpen, Layers, Hash, AlertCircle } from 'lucide-react';
 import { StudyGuideResponse, StudySource, Quiz, QuizAttempt, User, SimplifiedExplanation, StudySession } from '../types';
 import { generateQuiz, generateSimpleExplanations } from '../services/geminiService';
 import { authService } from '../services/authService';
@@ -21,6 +21,7 @@ const StudyGuide: React.FC<StudyGuideProps> = ({ guide, sources, activeSessionId
   const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [preferredDifficulty, setPreferredDifficulty] = useState<'mixed' | 'easy' | 'moderate' | 'difficult'>('mixed');
+  const [questionCount, setQuestionCount] = useState<number>(10);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<QuizAttempt[]>([]);
   const [isCollaborative, setIsCollaborative] = useState(false);
@@ -106,10 +107,20 @@ const StudyGuide: React.FC<StudyGuideProps> = ({ guide, sources, activeSessionId
   };
 
   const handleStartQuiz = async () => {
+    // Basic validation
+    if (questionCount < 1) {
+      setError("The ritual requires at least one trial.");
+      return;
+    }
+    if (questionCount > 25) {
+      setError("The Oracle's energy is capped at 25 trials per session.");
+      return;
+    }
+
     setIsGeneratingQuiz(true);
     setError(null);
     try {
-      const q = await generateQuiz(sources, guide.highPriorityConcepts, preferredDifficulty);
+      const q = await generateQuiz(sources, guide.highPriorityConcepts, preferredDifficulty, questionCount);
       const sessionId = isCollaborative ? `session_${Date.now()}` : undefined;
       
       setQuiz({
@@ -123,7 +134,7 @@ const StudyGuide: React.FC<StudyGuideProps> = ({ guide, sources, activeSessionId
         if (el) el.scrollIntoView({ behavior: 'smooth' });
       }, 100);
     } catch (err: any) {
-      setError("The trial could not be manifested.");
+      setError("The trial could not be manifested. Perhaps the scrolls are too complex.");
     } finally {
       setIsGeneratingQuiz(false);
     }
@@ -204,7 +215,7 @@ const StudyGuide: React.FC<StudyGuideProps> = ({ guide, sources, activeSessionId
         </p>
       </section>
 
-      {/* High Priority Concepts */}
+      {/* Core Concepts */}
       <div className="space-y-6">
         <div className="flex items-center justify-between px-2">
           <h3 className="text-2xl font-bold text-white flex items-center gap-3">
@@ -357,6 +368,47 @@ const StudyGuide: React.FC<StudyGuideProps> = ({ guide, sources, activeSessionId
               </div>
             )}
 
+            {/* Ritual Intensity (Question Count) */}
+            <div className="mb-10 max-w-lg mx-auto bg-slate-900/40 p-8 rounded-[2.5rem] border border-slate-800">
+              <div className="flex items-center gap-2 mb-6 justify-center">
+                <Hash className="w-4 h-4 text-indigo-400" />
+                <span className="text-xs font-black uppercase tracking-widest text-slate-300">Ritual Intensity</span>
+              </div>
+              
+              <div className="flex flex-col items-center gap-6">
+                <div className="flex items-center gap-4 w-full px-4">
+                  <span className="text-[10px] font-black text-slate-500 uppercase">1</span>
+                  <input 
+                    type="range" 
+                    min="1" 
+                    max="25" 
+                    value={questionCount}
+                    onChange={(e) => setQuestionCount(parseInt(e.target.value))}
+                    className="flex-1 accent-indigo-500 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <span className="text-[10px] font-black text-slate-500 uppercase">25</span>
+                </div>
+                
+                <div className="flex items-center gap-3 bg-indigo-500/10 px-6 py-3 rounded-2xl border border-indigo-500/30">
+                  <span className="text-3xl font-black text-white">{questionCount}</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Questions</span>
+                </div>
+
+                <div className="flex flex-wrap justify-center gap-2">
+                  {[5, 10, 15, 20].map(count => (
+                    <button
+                      key={count}
+                      onClick={() => setQuestionCount(count)}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all border ${questionCount === count ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-950 border-slate-800 text-slate-500'}`}
+                    >
+                      {count}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Difficulty selector */}
             <div className="flex flex-wrap justify-center gap-3 mb-12">
               {(['mixed', 'easy', 'moderate', 'difficult'] as const).map(level => (
                 <button
@@ -369,6 +421,13 @@ const StudyGuide: React.FC<StudyGuideProps> = ({ guide, sources, activeSessionId
               ))}
             </div>
 
+            {error && (
+              <div className="mb-8 p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl flex items-center gap-3 justify-center text-rose-400 text-xs font-bold animate-in fade-in">
+                <AlertCircle className="w-4 h-4" />
+                {error}
+              </div>
+            )}
+
             <button
               onClick={handleStartQuiz}
               className={`px-10 py-5 bg-gradient-to-r ${isCollaborative ? 'from-purple-600 to-indigo-600' : 'from-indigo-600 to-purple-600'} text-white font-black text-xl rounded-2xl flex items-center justify-center gap-3 mx-auto shadow-2xl transition-all hover:scale-105 active:scale-95`}
@@ -378,9 +437,10 @@ const StudyGuide: React.FC<StudyGuideProps> = ({ guide, sources, activeSessionId
             </button>
           </section>
         ) : isGeneratingQuiz ? (
-          <div className="text-center py-20 animate-pulse">
-            <Loader2 className="w-12 h-12 text-indigo-400 animate-spin mx-auto mb-6" />
-            <h3 className="oracle-title text-2xl text-white">Extracting Final Trials...</h3>
+          <div className="text-center py-24 animate-pulse">
+            <Loader2 className="w-16 h-16 text-indigo-400 animate-spin mx-auto mb-8" />
+            <h3 className="oracle-title text-3xl text-white tracking-widest uppercase">Extracting {questionCount} Trials...</h3>
+            <p className="text-slate-500 italic mt-4">Consulting the ancient knowledge pools for your test.</p>
           </div>
         ) : (
           quiz && <QuizComponent quiz={quiz} onClose={() => setQuiz(null)} />

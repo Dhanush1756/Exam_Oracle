@@ -163,9 +163,18 @@ export const chatWithOracle = async (sources: StudySource[], history: ChatMessag
   return response.text;
 };
 
-export const generateQuiz = async (sources: StudySource[], concepts: Concept[], preferredDifficulty: string): Promise<Quiz> => {
+export const generateQuiz = async (sources: StudySource[], concepts: Concept[], preferredDifficulty: string, numQuestions: number): Promise<Quiz> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const prompt = `Create a 15-question quiz (5 easy, 5 moderate, 5 hard) based on: ${concepts.map(c => c.name).join(', ')}. Path: ${preferredDifficulty}.`;
+  
+  // Explicitly command the exact number of questions
+  const prompt = `Create a quiz with EXACTLY ${numQuestions} questions based on these core concepts: ${concepts.map(c => c.name).join(', ')}. 
+  Difficulty Path: ${preferredDifficulty}. 
+  
+  CRITICAL INSTRUCTION: You MUST return exactly ${numQuestions} questions. No more, no less.
+  
+  If path is 'mixed', provide a balanced distribution of easy, moderate, and difficult questions.
+  Provide detailed, insightful explanations for each answer to help the student learn.`;
+  
   const parts: any[] = [{ text: prompt }];
   for (const source of sources) {
     if (source.type === 'file') {
@@ -205,5 +214,12 @@ export const generateQuiz = async (sources: StudySource[], concepts: Concept[], 
     }
   });
 
-  return JSON.parse(response.text || "{}");
+  const quiz = JSON.parse(response.text || "{}");
+  
+  // Safety check to trim if AI provides more (though prompt should handle it)
+  if (quiz.questions && quiz.questions.length > numQuestions) {
+    quiz.questions = quiz.questions.slice(0, numQuestions);
+  }
+  
+  return quiz;
 };

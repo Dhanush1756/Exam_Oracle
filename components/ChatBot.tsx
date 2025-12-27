@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, Send, X, Bot, User, Loader2, Minimize2, Maximize2 } from 'lucide-react';
+import { MessageSquare, Send, X, Bot, User, Loader2, Minimize2, Maximize2, Download } from 'lucide-react';
 import { ChatMessage, StudySource } from '../types';
 import { chatWithOracle } from '../services/geminiService';
 
@@ -41,6 +41,33 @@ const ChatBot: React.FC<ChatBotProps> = ({ sources }) => {
     }
   };
 
+  const handleDownloadChat = () => {
+    if (messages.length === 0) return;
+
+    const timestamp = new Date().toLocaleString();
+    let transcript = `EXAM ORACLE - CHAT TRANSCRIPT\n`;
+    transcript += `Generated on: ${timestamp}\n`;
+    transcript += `------------------------------------------\n\n`;
+
+    messages.forEach((msg) => {
+      const role = msg.role === 'user' ? 'USER' : 'ORACLE';
+      transcript += `${role}:\n${msg.text}\n\n`;
+    });
+
+    transcript += `------------------------------------------\n`;
+    transcript += `End of Transcript. Walk the path of mastery.`;
+
+    const blob = new Blob([transcript], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Oracle_Transcript_${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   if (!isOpen) {
     return (
       <button 
@@ -67,6 +94,15 @@ const ChatBot: React.FC<ChatBotProps> = ({ sources }) => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {messages.length > 0 && !isMinimized && (
+            <button 
+              onClick={handleDownloadChat}
+              title="Download Transcript"
+              className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-amber-400 transition-colors"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+          )}
           <button onClick={() => setIsMinimized(!isMinimized)} className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400">
             {isMinimized ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
           </button>
