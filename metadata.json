@@ -1,0 +1,7 @@
+{
+  "name": "Exam Oracle",
+  "description": "A high-priority study guide generator that analyzes overlaps between your syllabus, lecture notes, and textbook chapters to focus your studies on what matters most.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
